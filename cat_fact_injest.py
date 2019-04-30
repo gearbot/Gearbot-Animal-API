@@ -1,6 +1,6 @@
 import json
 
-with open("uncleaned_facts.json", encoding="utf8") as raw_facts:
+with open("uncleaned_cat_facts.json", encoding="utf8") as raw_facts:
     raw_json = json.load(raw_facts)
     
     formatted_facts = []

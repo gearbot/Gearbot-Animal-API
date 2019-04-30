@@ -1,6 +1,6 @@
 [package]
-name = "gearbot_cat_api"
-version = "0.1.0"
+name = "gearbot_animal_api"
+version = "0.2.0"
 authors = ["BlackHoleFox <blackholefoxdev@gmail.com>"]
 edition = "2018"
 
