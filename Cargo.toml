@@ -1,11 +1,11 @@
 [package]
 name = "gearbot_animal_api"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["BlackHoleFox <blackholefoxdev@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-actix-web = "1.0.0-alpha.6"
+actix-web = "1.0.0-beta.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.39"
 rand = "0.6"

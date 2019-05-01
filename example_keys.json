@@ -1,0 +1,24 @@
+[
+    {   
+        "auth": {
+            "name": "Alice",
+            "key": "Rqz7-GoUXl-QBxgSgEnJ-ryT8WJ2N7IMbEIoJwrFDGHzsqReHBsBEMNJf_-8"
+        },
+        "permissions": {
+            "add": true,
+            "delete": true
+        } 
+    },
+
+    {   
+        "auth": {
+            "name": "Susan",
+            "key": "mUB8VWbNfL3aHBYSSkJIiN7bD3xyk2eTNL15D1KdrNlHK8UdguD7uGXGr6zn"
+        },
+        
+        "permissions": {
+            "add": true,
+            "delete": false
+        }
+    }
+]
