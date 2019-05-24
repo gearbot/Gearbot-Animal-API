@@ -5,8 +5,8 @@ authors = ["BlackHoleFox <blackholefoxdev@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-actix-web = "1.0.0-beta.2"
+actix-web = "1.0.0-rc"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.39"
+serde_json = "1.0"
 rand = "0.6"
-prometheus = { version = "0.5.0", features = ["nightly"], default-features = false }
+prometheus = "0.6"

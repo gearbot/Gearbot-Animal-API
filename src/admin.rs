@@ -1,5 +1,5 @@
 use actix_web::{HttpRequest, HttpResponse, web::Json};
-use actix_web::web;
+use actix_web::web::Data;
 
 use std::fs;
 
@@ -33,7 +33,7 @@ fn check_admin_perms(unchecked_auth: AuthKeys, admin_list: Vec<Admin>) -> (bool,
 }
 
 pub fn admin_modify_fact(req: HttpRequest, body: Json<ModifyRequest>) -> HttpResponse {
-    let state: web::Data<APIState> = req.to_owned().app_data().unwrap();
+    let state: &Data<APIState> = req.app_data().unwrap();
 
     fn modify_fact(request: ModifyRequest, mut fact_list: Vec<Fact>, action: ModifyAction, animal: AnimalChoice, perms: Perms) -> HttpResponse {
         if action == ModifyAction::Add && perms.add {
