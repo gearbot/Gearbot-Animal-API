@@ -1,4 +1,5 @@
 # Gearbot Animal API
+[![Build Status](https://dev.azure.com/GearBot/GearBot/_apis/build/status/gearbot.Gearbot-Animal-API?branchName=master)](https://dev.azure.com/GearBot/GearBot/_build/latest?definitionId=1&branchName=master)
 
 This is the API that [Gearbot](https://github.com/AEnterprise/Gearbot) uses for retrieving animal facts.
 
