@@ -49,7 +49,7 @@ stages:
                     "title": "Pipeline Build Event",
                     "color": $(statusColor),
                     "url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
-                    "description":  "A new build was triggered in the $(Build.DefinitionName) pipeline",
+                    "description": "A new build completed in the $(Build.DefinitionName) pipeline",
                     "author": {
                       "name": "Azure DevOps"
                     },
@@ -80,7 +80,7 @@ stages:
                     ]
                 }]'
 
-- stage: test
+- stage: Test
   jobs: 
   - job: check_clippy
     displayName: Clippy
