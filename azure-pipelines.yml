@@ -295,7 +295,7 @@ stages:
                     "embeds": [{
                         "title": "Pipeline Deployment Event",
                         "color": $(statusColor),
-                        "url": "https://dev.azure.com/blackholefoxdev/API_Build_Testing/_build/results?buildId=102",
+                        "url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
                         "description": "A new deployment was made in the $(Build.DefinitionName) pipeline",
                         "author": {
                           "name": "Azure DevOps"
