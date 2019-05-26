@@ -1,19 +1,330 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
+# Gearbot Animal API Azure build pipeline
 trigger:
 - master
 
-pool:
-  vmImage: 'ubuntu-latest'
+variables:
+- group: DiscordWebhook-PipelineMonitoring
 
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+stages:
+- stage: Build
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+  jobs:
+  - job: build_rust
+    displayName: Rust Stable Build
+    
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+    - template: ci/installrust.yml
+    - script: cargo rustc --release -- -C lto -C link-args=-s -C panic=abort
+      displayName: API Compilation
+
+      #We won't bother making artifacts for PR checks, only for commits
+    - task: PublishPipelineArtifact@0
+      condition: and(succeeded(), ne(variables['build.reason'], 'PullRequest'))
+      inputs:
+        artifactName: 'gearbot_animal_api'
+        targetPath: './target/release/gearbot_animal_api'
+
+    # If we ever end up using this exact thing more then twice, move it to a template
+    - script: echo '##vso[task.setVariable variable=statusColor]16711680'
+      displayName: Determine Failure Status Color
+      condition: failed()
+    - script: echo '##vso[task.setVariable variable=statusColor]62976'
+      displayName: Determine Success Status Color
+      condition: succeeded()
+
+    # Webhooks will not appear for PRs as its not needed, they show up in GitHub
+    - task: ado-discord-webhook@1
+      displayName: Notify Discord of Build
+      condition: and(always(), ne(variables['build.reason'], 'PullRequest'))
+      # Never know when Discord will die inside
+      continueOnError: true
+      inputs:
+        channelId: '$(channel_id)'
+        webhookKey: '$(webhook_key)'
+        messageType: 'embeds'
+        embeds: '[{
+                    "title": "Pipeline Build Event",
+                    "color": $(statusColor),
+                    "url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+                    "description":  "A new build was triggered in the $(Build.DefinitionName) pipeline",
+                    "author": {
+                      "name": "Azure DevOps"
+                    },
+                    "fields": [
+                      {
+                        "name": "Build Name",
+                        "value": "$(Agent.JobName)",
+                        "inline": true
+                      },
+
+                      {
+                        "name": "Stage",
+                        "value": "Build",
+                        "inline": true
+                      },
+
+                      {
+                        "name": "Status",
+                        "value": "$(Agent.JobStatus)",
+                        "inline": false
+                      },
+
+                      {
+                        "name": "Git Version",
+                        "value": "$(Build.SourceVersion)",
+                        "inline": false
+                      }
+                    ]
+                }]'
+
+- stage: test
+  jobs: 
+  - job: check_clippy
+    displayName: Clippy
+
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+    - template: ci/installrust.yml
+    - script: rustup component add clippy
+      displayName: Install Clippy
+    - script: cargo clippy --all -- -D clippy::all
+      displayName: Clippy Tests
+  
+    - script: echo '##vso[task.setVariable variable=statusColor]16711680'
+      displayName: Determine Failure Status Color
+      condition: failed()
+    - script: echo '##vso[task.setVariable variable=statusColor]62976'
+      displayName: Determine Success Status Color
+      condition: succeeded()
+
+    - task: ado-discord-webhook@1
+      displayName: Notify Discord of Test
+      condition: and(always(), ne(variables['build.reason'], 'PullRequest'))
+      continueOnError: true
+      inputs:
+        channelId: '$(channel_id)'
+        webhookKey: '$(webhook_key)'
+        messageType: 'embeds'
+        embeds: '[{
+                    "title": "Pipeline Build Event",
+                    "color": $(statusColor),
+                    "url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+                    "description": "A test was ran in the $(Build.DefinitionName) pipeline",
+                    "author": {
+                      "name": "Azure DevOps"
+                    },
+                    "fields": [
+                      {
+                        "name": "Test Type",
+                        "value": "$(Agent.JobName)",
+                        "inline": true
+                      },
+
+                      {
+                        "name": "Stage",
+                        "value": "Testing",
+                        "inline": true
+                      },
+
+                      {
+                        "name": "Status",
+                        "value": "$(Agent.JobStatus)",
+                        "inline": false
+                      },
+
+                      {
+                        "name": "Git Version",
+                        "value": "$(Build.SourceVersion)",
+                        "inline": false
+                      }
+                    ]
+                }]'
+
+  - job: startup_test
+    displayName: API Startup Test
+
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+      - task: DownloadSecureFile@1
+        displayName: Download Testing Cat Facts
+        inputs:
+          secureFile: 'cat_facts.json'
+
+      - task: DownloadSecureFile@1
+        displayName: Download Testing Dog Facts
+        inputs:
+          secureFile: 'dog_facts.json'
+
+      - task: DownloadPipelineArtifact@1
+        displayName: Download API Binary
+        inputs:
+          buildType: 'current'
+          artifactName: 'gearbot_animal_api'
+          targetPath: '$(Agent.TempDirectory)'
+
+      - script: 'chmod +x ./gearbot_animal_api; ./gearbot_animal_api & last_pid=$!; sleep 5; kill -s TERM $last_pid'
+        displayName: API Startup Panic Test
+        workingDirectory: '$(Agent.TempDirectory)'
+        failOnStderr: 'true'
+
+      - script: echo '##vso[task.setVariable variable=statusColor]16711680'
+        displayName: Determine Failure Status Color
+        condition: failed()
+      - script: echo '##vso[task.setVariable variable=statusColor]62976'
+        displayName: Determine Success Status Color
+        condition: succeeded()
+
+      - task: ado-discord-webhook@1
+        displayName: Notify Discord of Startup Test
+        condition: always()
+        continueOnError: true
+        inputs:
+          channelId: '$(channel_id)'
+          webhookKey: '$(webhook_key)'
+          messageType: 'embeds'
+          embeds: '[{
+                    "title": "Pipeline Build Event",
+                    "color": $(statusColor),
+                    "url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+                    "description": "A test was ran in the $(Build.DefinitionName) pipeline",
+                    "author": {
+                      "name": "Azure DevOps"
+                    },
+                    "fields": [
+                        {
+                          "name": "Test Type",
+                          "value": "$(Agent.JobName)",
+                          "inline": true
+                        },
+            
+                        {
+                          "name": "Stage",
+                          "value": "Testing",
+                          "inline": true
+                        },
+            
+                        {
+                          "name": "Status",
+                          "value": "$(Agent.JobStatus)",
+                          "inline": false
+                        },
+            
+                        {
+                          "name": "Git Version",
+                          "value": "$(Build.SourceVersion)",
+                          "inline": false
+                        }
+                    ]
+                }]'
+        
+
+- stage: Deployment
+  jobs:
+
+  - deployment: deploy_to_vm
+    displayName: Deploy Build to VM
+    environment: Production
+
+    # Don't try and deploy a PR code build
+    condition: and(succeeded(), ne(variables['build.reason'], 'PullRequest'))
+
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: DownloadPipelineArtifact@1
+            displayName: Download API Binary
+            inputs:
+              buildType: 'current'
+              artifactName: 'gearbot_animal_api'
+              targetPath: '$(System.DefaultWorkingDirectory)'
+
+          - task: SSH@0
+            displayName: Stop API Service
+            inputs:
+              sshEndpoint: 'Gearbox'
+              runOptions: 'commands'
+              commands: 'sudo systemctl stop animalapi.service'
+
+          - task: CopyFilesOverSSH@0
+            displayName: Copy API Binary to VM
+            inputs:
+              sshEndpoint: 'Gearbox'
+              contents: 'gearbot_animal_api'
+              targetFolder: './animal_api/'
+              failOnEmptySource: true
+
+          - task: SSH@0
+            displayName: Start API Service
+            inputs:
+              sshEndpoint: 'Gearbox'
+              runOptions: 'commands'
+              commands: 'chmod +x ./animal_api/gearbot_animal_api; sudo systemctl start animalapi.service'
+
+          - script: echo "##vso[task.setVariable variable=deployTime]`date --iso-8601=seconds`"
+            condition: always()
+            displayName: Set Deploy Time
+
+          - script: echo '##vso[task.setVariable variable=statusColor]2973381'
+            displayName: Determine Deploy Success Status Color
+            condition: succeeded()
+          
+          - script: echo '##vso[task.setVariable variable=statusColor]16711680'
+            displayName: Determine Deploy Failure Status Color
+            condition: failed()
+
+          - script: echo $(deployTime)
+            condition: always()
+
+          - task: Bash@3
+            condition: always()
+            continueOnError: true
+            inputs:
+              targetType: 'inline'
+              script: 'curl -X POST -k -H ''Content-Type: application/json'' -i ''https://discordapp.com/api/webhooks/$(channel_id)/$(webhook_key)'' --data ''{
+                    "embeds": [{
+                        "title": "Pipeline Deployment Event",
+                        "color": $(statusColor),
+                        "url": "https://dev.azure.com/blackholefoxdev/API_Build_Testing/_build/results?buildId=102",
+                        "description": "A new deployment was made in the $(Build.DefinitionName) pipeline",
+                        "author": {
+                          "name": "Azure DevOps"
+                        },
+                        "fields": [
+                            {
+                                "name": "Deploy Location",
+                                "value": "The Gearbox",
+                                "inline": true
+                            },
+                
+                            {
+                                "name": "Time Deployed",
+                                "value": "$(deployTime)",
+                                "inline": true
+                            },
+
+                            {
+                            "name": "Status",
+                            "value": "$(Agent.JobStatus)",
+                            "inline": false
+                            },
+                
+                            {
+                            "name": "Git Version",
+                            "value": "$(Build.SourceVersion)",
+                            "inline": false
+                            }
+                        ]
+                    }]
+                }'''
+              failOnStderr: false

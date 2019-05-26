@@ -118,7 +118,7 @@ fn main() {
             // This will never panic if you don't mess up the JSON
             let admins: Vec<Admin> = serde_json::from_str(&key_file).unwrap();
             println!("{} admins registered", admins.len());
-            if admins.len() == 0 { println!("No admins will be able to interact with the API via REST!") }
+            if admins.is_empty() { println!("No admins will be able to interact with the API via REST!") }
             admins
         }
         Err(_) => {
