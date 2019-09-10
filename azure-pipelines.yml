@@ -1,330 +1,196 @@
-# Gearbot Animal API Azure build pipeline
+# Gearbot Animal API Azure CI/CD
 trigger:
 - master
 
 variables:
-- group: DiscordWebhook-PipelineMonitoring
+- group: DiscordWebhook-DeploymentMonitoring
 
 stages:
-- stage: Build
+- stage: Tests
 
   jobs:
-  - job: build_rust
-    displayName: Rust Stable Build
-    
+  - job: cargo_tests
+    displayName: Cargo Test
+
     pool:
       vmImage: 'ubuntu-latest'
 
     steps:
     - template: ci/installrust.yml
-    - script: cargo rustc --release -- -C lto -C link-args=-s -C panic=abort
-      displayName: API Compilation
 
-      #We won't bother making artifacts for PR checks, only for commits
-    - task: PublishPipelineArtifact@0
-      condition: and(succeeded(), ne(variables['build.reason'], 'PullRequest'))
-      inputs:
-        artifactName: 'gearbot_animal_api'
-        targetPath: './target/release/gearbot_animal_api'
+    - script: cargo test
+      displayName: Cargo test
 
-    # If we ever end up using this exact thing more then twice, move it to a template
-    - script: echo '##vso[task.setVariable variable=statusColor]16711680'
-      displayName: Determine Failure Status Color
-      condition: failed()
-    - script: echo '##vso[task.setVariable variable=statusColor]62976'
-      displayName: Determine Success Status Color
-      condition: succeeded()
-
-    # Webhooks will not appear for PRs as its not needed, they show up in GitHub
-    - task: ado-discord-webhook@1
-      displayName: Notify Discord of Build
-      condition: and(always(), ne(variables['build.reason'], 'PullRequest'))
-      # Never know when Discord will die inside
-      continueOnError: true
-      inputs:
-        channelId: '$(channel_id)'
-        webhookKey: '$(webhook_key)'
-        messageType: 'embeds'
-        embeds: '[{
-                    "title": "Pipeline Build Event",
-                    "color": $(statusColor),
-                    "url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
-                    "description": "A new build completed in the $(Build.DefinitionName) pipeline",
-                    "author": {
-                      "name": "Azure DevOps"
-                    },
-                    "fields": [
-                      {
-                        "name": "Build Name",
-                        "value": "$(Agent.JobName)",
-                        "inline": true
-                      },
-
-                      {
-                        "name": "Stage",
-                        "value": "Build",
-                        "inline": true
-                      },
-
-                      {
-                        "name": "Status",
-                        "value": "$(Agent.JobStatus)",
-                        "inline": false
-                      },
-
-                      {
-                        "name": "Git Version",
-                        "value": "$(Build.SourceVersion)",
-                        "inline": false
-                      }
-                    ]
-                }]'
-
-- stage: Test
-  jobs: 
   - job: check_clippy
     displayName: Clippy
+    dependsOn: cargo_tests
 
     pool:
       vmImage: 'ubuntu-latest'
 
     steps:
     - template: ci/installrust.yml
+
     - script: rustup component add clippy
       displayName: Install Clippy
+
     - script: cargo clippy --all -- -D clippy::all
-      displayName: Clippy Tests
-  
-    - script: echo '##vso[task.setVariable variable=statusColor]16711680'
-      displayName: Determine Failure Status Color
-      condition: failed()
-    - script: echo '##vso[task.setVariable variable=statusColor]62976'
-      displayName: Determine Success Status Color
-      condition: succeeded()
+      displayName: Clippy Check
+    
+  - job: cargo_check
+    displayName: Cargo Check
+    dependsOn: cargo_tests
+    
+    strategy:
+      matrix:
+        Windows Stable:
+          imageName: 'vs2017-win2016'
+          rustup_toolchain: stable
+        Windows Nightly:
+          imageName: 'vs2017-win2016'
+          rustup_toolchain: nightly
 
-    - task: ado-discord-webhook@1
-      displayName: Notify Discord of Test
-      condition: and(always(), ne(variables['build.reason'], 'PullRequest'))
-      continueOnError: true
-      inputs:
-        channelId: '$(channel_id)'
-        webhookKey: '$(webhook_key)'
-        messageType: 'embeds'
-        embeds: '[{
-                    "title": "Pipeline Build Event",
-                    "color": $(statusColor),
-                    "url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
-                    "description": "A test was ran in the $(Build.DefinitionName) pipeline",
-                    "author": {
-                      "name": "Azure DevOps"
-                    },
-                    "fields": [
-                      {
-                        "name": "Test Type",
-                        "value": "$(Agent.JobName)",
-                        "inline": true
-                      },
+        Linux Stable:
+          imageName: 'ubuntu-latest'
+          rustup_toolchain: stable
+        Linux Nightly:
+          imageName: 'ubuntu-latest'
+          rustup_toolchain: nightly
+      
+    pool:
+      vmImage: $(imageName)
 
-                      {
-                        "name": "Stage",
-                        "value": "Testing",
-                        "inline": true
-                      },
+    steps:
+    - template: ci/installrust.yml
+      parameters:
+        rust_toolchain: $(rustup_toolchain)
 
-                      {
-                        "name": "Status",
-                        "value": "$(Agent.JobStatus)",
-                        "inline": false
-                      },
+    - script: cargo check --all --bins
+      displayName: Cargo Check
 
-                      {
-                        "name": "Git Version",
-                        "value": "$(Build.SourceVersion)",
-                        "inline": false
-                      }
-                    ]
-                }]'
 
-  - job: startup_test
-    displayName: API Startup Test
+- stage: Build
+  dependsOn: Tests
+  condition: succeeded()
+
+  jobs:
+  - job: build_binary
+    displayName: Build Binary
 
     pool:
       vmImage: 'ubuntu-latest'
 
     steps:
-      - task: DownloadSecureFile@1
-        displayName: Download Testing Cat Facts
-        inputs:
-          secureFile: 'cat_facts.json'
+    - template: ci/installrust.yml
 
-      - task: DownloadSecureFile@1
-        displayName: Download Testing Dog Facts
-        inputs:
-          secureFile: 'dog_facts.json'
+    - script: cargo rustc --release --bin animal_api -- -C lto -C link-args=-s
+      condition: ne(variables['build.reason'], 'PullRequest')
+      displayName: Startup release compile
 
-      - task: DownloadPipelineArtifact@1
-        displayName: Download API Binary
-        inputs:
-          buildType: 'current'
-          artifactName: 'gearbot_animal_api'
-          targetPath: '$(Agent.TempDirectory)'
+    - script: cargo build
+      condition: eq(variables['build.reason'], 'PullRequest')
+      displayName: Startup pull request compile
 
-      - script: 'chmod +x ./gearbot_animal_api; ./gearbot_animal_api & last_pid=$!; sleep 5; kill -s TERM $last_pid'
-        displayName: API Startup Panic Test
-        workingDirectory: '$(Agent.TempDirectory)'
-        failOnStderr: 'true'
+    # Artifacts are needed for the startup test, even on PRs
+    - task: PublishPipelineArtifact@0
+      displayName: Publish deploy binary
+      condition: and(succeeded(),  ne(variables['build.reason'], 'PullRequest'))
+      inputs:
+        artifactName: 'animal_api'
+        targetPath: './target/release/animal_api'
 
-      - script: echo '##vso[task.setVariable variable=statusColor]16711680'
-        displayName: Determine Failure Status Color
-        condition: failed()
-      - script: echo '##vso[task.setVariable variable=statusColor]62976'
-        displayName: Determine Success Status Color
-        condition: succeeded()
+    # Artifacts are needed for the startup test, even on PRs
+    - task: PublishPipelineArtifact@0
+      displayName: Publish debug binary
+      condition: and(succeeded(),  eq(variables['build.reason'], 'PullRequest'))
+      inputs:
+        artifactName: 'animal_api'
+        targetPath: './target/debug/animal_api'
 
-      - task: ado-discord-webhook@1
-        displayName: Notify Discord of Startup Test
-        condition: always()
-        continueOnError: true
-        inputs:
-          channelId: '$(channel_id)'
-          webhookKey: '$(webhook_key)'
-          messageType: 'embeds'
-          embeds: '[{
-                    "title": "Pipeline Build Event",
-                    "color": $(statusColor),
-                    "url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
-                    "description": "A test was ran in the $(Build.DefinitionName) pipeline",
-                    "author": {
-                      "name": "Azure DevOps"
-                    },
-                    "fields": [
-                        {
-                          "name": "Test Type",
-                          "value": "$(Agent.JobName)",
-                          "inline": true
-                        },
-            
-                        {
-                          "name": "Stage",
-                          "value": "Testing",
-                          "inline": true
-                        },
-            
-                        {
-                          "name": "Status",
-                          "value": "$(Agent.JobStatus)",
-                          "inline": false
-                        },
-            
-                        {
-                          "name": "Git Version",
-                          "value": "$(Build.SourceVersion)",
-                          "inline": false
-                        }
-                    ]
-                }]'
-        
-
-- stage: Deployment
-  jobs:
-
-  - deployment: deploy_to_vm
-    displayName: Deploy Build to VM
-    environment: Production
-
-    # Don't try and deploy a PR code build
-    condition: and(succeeded(), ne(variables['build.reason'], 'PullRequest'))
+  - job: startup_test
+    displayName: Startup Test
+    dependsOn: build_binary
+    condition: succeeded()
 
     pool:
       vmImage: 'ubuntu-latest'
 
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - task: DownloadPipelineArtifact@1
-            displayName: Download API Binary
-            inputs:
-              buildType: 'current'
-              artifactName: 'gearbot_animal_api'
-              targetPath: '$(System.DefaultWorkingDirectory)'
+    steps:
+      - script: cp default_config.toml config.toml
+        displayName: Create config
 
-          - task: SSH@0
-            displayName: Stop API Service
-            inputs:
-              sshEndpoint: 'Gearbox'
-              runOptions: 'commands'
-              commands: 'sudo systemctl stop animalapi.service'
+      - task: DownloadPipelineArtifact@1
+        displayName: Download Binary
+        inputs:
+          buildType: 'current'
+          artifactName: 'animal_api'
+          targetPath: '$(System.DefaultWorkingDirectory)'
 
-          - task: CopyFilesOverSSH@0
-            displayName: Copy API Binary to VM
-            inputs:
-              sshEndpoint: 'Gearbox'
-              contents: 'gearbot_animal_api'
-              targetFolder: './animal_api/'
-              failOnEmptySource: true
+      - script: |
+          chmod +x ./animal_api
+          RESULTS=`./animal_api & last_pid=$!; sleep 5; kill -s TERM $last_pid`
+          echo "##vso[task.setvariable variable=startupResult;]$RESULTS"
+        displayName: Startup Panic Test
+        
+      - script: 'echo $(startupResult); exit 1'
+        displayName: Startup failure
+        condition: contains(variables['startupResult'], 'thread')
 
-          - task: SSH@0
-            displayName: Start API Service
-            inputs:
-              sshEndpoint: 'Gearbox'
-              runOptions: 'commands'
-              commands: 'chmod +x ./animal_api/gearbot_animal_api; sudo systemctl start animalapi.service'
+      - script: rm -rf config.toml ./example_facts ./logs
+        displayName: Clean repo contents
 
-          - script: echo "##vso[task.setVariable variable=deployTime]`date --iso-8601=seconds`"
-            condition: always()
-            displayName: Set Deploy Time
+      - task: PublishPipelineArtifact@1
+        displayName: Generate deploy files
+        condition: and(succeeded(), ne(variables['build.reason'], 'PullRequest'))
+        inputs:
+          targetPath: '$(System.DefaultWorkingDirectory)'
+          artifact: 'DeployFiles'
 
-          - script: echo '##vso[task.setVariable variable=statusColor]2973381'
-            displayName: Determine Deploy Success Status Color
-            condition: succeeded()
-          
-          - script: echo '##vso[task.setVariable variable=statusColor]16711680'
-            displayName: Determine Deploy Failure Status Color
-            condition: failed()
 
-          - script: echo $(deployTime)
-            condition: always()
+- stage: Deploy
+  dependsOn: Build
+  condition: and(succeeded(), ne(variables['build.reason'], 'PullRequest'))
 
-          - task: Bash@3
-            condition: always()
-            continueOnError: true
-            inputs:
-              targetType: 'inline'
-              script: 'curl -X POST -k -H ''Content-Type: application/json'' -i ''https://discordapp.com/api/webhooks/$(channel_id)/$(webhook_key)'' --data ''{
-                    "embeds": [{
-                        "title": "Pipeline Deployment Event",
-                        "color": $(statusColor),
-                        "url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
-                        "description": "A new deployment was made in the $(Build.DefinitionName) pipeline",
-                        "author": {
-                          "name": "Azure DevOps"
-                        },
-                        "fields": [
-                            {
-                                "name": "Deploy Location",
-                                "value": "The Gearbox",
-                                "inline": true
-                            },
-                
-                            {
-                                "name": "Time Deployed",
-                                "value": "$(deployTime)",
-                                "inline": true
-                            },
+  jobs:
+    - deployment: deploy_to_vm
+      displayName: Deploy to VM
+      environment: Production
 
-                            {
-                            "name": "Status",
-                            "value": "$(Agent.JobStatus)",
-                            "inline": false
-                            },
-                
-                            {
-                            "name": "Git Version",
-                            "value": "$(Build.SourceVersion)",
-                            "inline": false
-                            }
-                        ]
-                    }]
-                }'''
-              failOnStderr: false
+      pool:
+        vmImage: 'ubuntu-latest'
+
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+            - task: DownloadPipelineArtifact@1
+              displayName: Download deploy files
+              inputs:
+                buildType: 'current'
+                artifactName: 'DeployFiles'
+                targetPath: '$(System.DefaultWorkingDirectory)'
+            
+            - task: SSH@0
+              displayName: Stop Service
+              inputs:
+                sshEndpoint: 'GearBox'
+                runOptions: 'commands'
+                commands: 'sudo systemctl stop animalapi.service'
+            
+            - task: CopyFilesOverSSH@0
+              displayName: Copy deployment to VM
+              inputs:
+                sshEndpoint: 'GearBox'
+                contents: '**'
+                targetFolder: './animal_api/'
+                failOnEmptySource: true
+
+            - task: SSH@0
+              displayName: Start Service
+              inputs:
+                sshEndpoint: 'GearBox'
+                runOptions: 'commands'
+                commands: 'chmod +x ./animal_api/animal_api; sudo systemctl start animalapi.service'
+            
+            # Notify admins via Discord of the deployment
+            - template: ci/discordnotify.yml
