@@ -1,0 +1,26 @@
+logging_dir = "./logs/"
+logging_level = "info"
+
+# This is where the API will look for the fact JSON files
+facts_dir = "./example_facts/"
+# The types of facts we want to load. Can either be both Cat and Dog, or just one of each.
+# If the list is empty, then no facts will be loaded
+animal_fact_types = ["Cat", "Dog"]
+
+[server]
+ip = "127.0.0.1"
+port = 8080
+
+[[admins]]
+name = "Alice"
+key = "Rqz7-GoUXl-QBxgSgEnJ-ryT8WJ2N7IMbEIoJwrFDGHzsqReHBsBEMNJf_-8"
+[admins.permissions]
+add = true
+delete = true
+
+[[admins]]
+name = "Susan"
+key = "mUB8VWbNfL3aHBYSSkJIiN7bD3xyk2eTNL15D1KdrNlHK8UdguD7uGXGr6zn"
+[admins.permissions]
+add = true
+delete = false

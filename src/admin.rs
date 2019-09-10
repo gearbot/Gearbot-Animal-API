@@ -1,146 +1,149 @@
 use actix_web::{HttpRequest, HttpResponse, web::Json};
 use actix_web::web::Data;
+use rand::RngCore;
+use log::info;
 
 use std::fs;
+use std::sync::{RwLock, RwLockWriteGuard};
 
-use crate::{
+use super::{
     APIState,
     Admin,
-    AuthKeys,
     Perms,
     ModifyRequest,
     ModifyAction,
     Fact,
-    AnimalChoice
+    FactLists,
+    Animal,
+    Response,
+    generate_response
 };
 
-fn check_admin_perms(unchecked_auth: AuthKeys, admin_list: Vec<Admin>) -> (bool, Option<Perms>) {
-    match admin_list.iter().find(|admin| admin.auth == unchecked_auth) {
-        Some(admin) => {
-            if admin.permissions.add || admin.permissions.delete { // If they have no perms, say it
-                (true, Some(
-                    Perms {
-                        add: admin.permissions.add,
-                        delete: admin.permissions.delete
-                    }
-                ))
-            } else {
-                (true, None)
+fn check_admin_perms(unchecked_auth: &str, admin_list: Option<&Vec<Admin>>) -> Option<(Admin, Option<Perms>)> {
+    if let Some(admin_list) = admin_list {
+        match admin_list.iter().find(|admin| admin.key == unchecked_auth) {
+            Some(admin) => {
+                if admin.permissions.add || admin.permissions.delete {
+                    Some((
+                        admin.clone(),
+                        Some(Perms {
+                            add: admin.permissions.add,
+                            delete: admin.permissions.delete
+                        })
+                    ))
+                } else {
+                    Some((admin.clone(), None))
+                }
             }
+            None => None
         }
-        None => (false, None)
+    } else {
+        None
     }
 }
 
-pub fn admin_modify_fact(req: HttpRequest, body: Json<ModifyRequest>) -> HttpResponse {
-    let state: &Data<APIState> = req.app_data().unwrap();
-
-    fn modify_fact(request: ModifyRequest, mut fact_list: Vec<Fact>, action: ModifyAction, animal: AnimalChoice, perms: Perms) -> HttpResponse {
-        if action == ModifyAction::Add && perms.add {
-            let last_id = match fact_list.last() {
-                Some(fact) => fact.id,
-                None => 0 // It could be a brand new JSON file.. somehow...
-            };
-
-            match request.content {
-                Some(content) => {
-                    fact_list.push(
-                        Fact {
-                            id: last_id + 1,
-                            fact: content
-                        }
-                    );
-                }
-
-                None => return HttpResponse::BadRequest().body("NO \"content\" SPECIFIED")
-            }
-
-            match animal {
-                AnimalChoice::Cat => {
-                    fs::write("cat_facts.json", serde_json::to_string_pretty(&fact_list).unwrap()).unwrap();
-                    HttpResponse::Created().body("CAT FACT ADDED")
-                }
-
-                AnimalChoice::Dog => {
-                    fs::write("dog_facts.json", serde_json::to_string_pretty(&fact_list).unwrap()).unwrap();
-                    HttpResponse::Created().body("DOG FACT ADDED")
-                }
-           }
-            
-        } else if action == ModifyAction::Delete && perms.delete { // TODO: REPLICATE CAT ABOVE
-            match request.fact_id {
-                Some(rem_id) => {
-                    match fact_list.iter().find(|fact| fact.id == rem_id) {
-                        Some(_) => {
-                            fact_list.remove(rem_id as usize);
-
-                            let mut new_fact_list: Vec<Fact> = Vec::with_capacity(fact_list.len() - 1);
-                            for fact in fact_list {
-                                new_fact_list.push(
-                                    Fact {
-                                        id: fact.id - 1,
-                                        fact: fact.fact
-                                    }
-                                )
-                            }
-
-                            match animal {
-                                AnimalChoice::Cat => {
-                                    fs::write("cat_facts.json", serde_json::to_string_pretty(&new_fact_list).unwrap()).unwrap();
-                                    HttpResponse::Created().body("CAT FACT DELETED")
-                                }
-                                AnimalChoice::Dog => {
-                                    fs::write("dog_facts.json", serde_json::to_string_pretty(&new_fact_list).unwrap()).unwrap();
-                                    HttpResponse::Created().body("DOG FACT DELETED")
-                                }
-                            }
-                        }
-
-                        None => HttpResponse::BadRequest().body(format!("INVALID FACT_ID SPECIFIED, MAX: {}", fact_list.len() - 1))
-                    }
-                }
-
-                None => HttpResponse::BadRequest().body("NO \"fact_id\" SPECIFIED")
-            }
-
+pub fn admin_modify_fact(state: Data<APIState>, req: HttpRequest, body: Json<ModifyRequest>) -> HttpResponse {
+    let (action, user) = {
+        let action = if req.path().ends_with("add") {
+            ModifyAction::Add
         } else {
-            HttpResponse::Forbidden().body("INSUFFICENT PERMISSIONS")
+            // Anything expect /add and /delete will 404 first
+            ModifyAction::Delete
+        };
+
+        // See if the provided key is valid
+        if let Some((user, perms)) = check_admin_perms(&body.auth, state.admins.as_ref()) {
+            // Check if they currently have any permissions at all
+            if let Some(perms) = perms {
+                // Check if they are allowed to perform the desired action
+                if (action == ModifyAction::Add && !perms.add) | (action == ModifyAction::Delete && !perms.delete) { 
+                    return generate_response(&Response::MissingPermission.gen_resp())
+                }
+                // Validated for performing their action
+                (action, user)
+            } else {
+                return generate_response(&Response::MissingPermission.gen_resp())
+            }
+        } else {
+           return generate_response(&Response::InvalidAuth.gen_resp())
+        }
+    };
+
+    // Check if the requested animal list is loaded
+    match body.animal_type {
+        Animal::Cat => {
+            if state.fact_lists.cat_facts.is_none() {
+                return generate_response(&Response::TypeNotLoaded.gen_resp())
+            }
+        }
+        Animal::Dog => {
+            if state.fact_lists.dog_facts.is_none() {
+                return generate_response(&Response::TypeNotLoaded.gen_resp())
+            }
         }
     }
 
-    let action = {
-        let action_raw = req.to_owned();
-        let action_raw = action_raw.path();
+    match action {
+        ModifyAction::Add => add_fact(body.animal_type, user, body.into_inner(), &state),
+        ModifyAction::Delete => delete_fact(body.animal_type, user, body.into_inner(), &state)
+    }
+}
 
-        if action_raw.ends_with("add") {
-            ModifyAction::Add
-        } else if action_raw.ends_with("delete") {
-            ModifyAction::Delete
-        } else {
-            return HttpResponse::NotFound().body("")
-        }
-    };
-    
-    let (valid_admin, valid_perms) = check_admin_perms(body.auth.to_owned(), state.admins.to_owned());
+fn determine_list(animal: Animal, fact_lists: &FactLists) -> &RwLock<Vec<Fact>> {
+    match animal {
+        // These unwraps are safe due to previous checks
+        Animal::Cat => fact_lists.cat_facts.as_ref().unwrap(),
+        Animal::Dog => fact_lists.dog_facts.as_ref().unwrap(),
+    }
+}
 
-    if valid_admin {
-        match valid_perms {
-            Some(perms) => { // Had some perms, now check if they can perform the requested action
-                match body.target.to_lowercase().as_str() {
-                    "cat" => modify_fact(body.into_inner(), state.cat_fact_list.to_owned(), action, AnimalChoice::Cat, perms),
-                    "dog" => modify_fact(body.into_inner(), state.dog_fact_list.to_owned(), action, AnimalChoice::Dog, perms),
+fn modify_persistent(animal: Animal, fact_list: RwLockWriteGuard<Vec<Fact>>, state: &APIState) {
+    let path = animal.get_filepath(&state.config.facts_dir);
+    fs::write(path, serde_json::to_string_pretty(&*fact_list).unwrap()).unwrap() 
+}
 
-                    &_ => HttpResponse::BadRequest().body("INVALID TARGET")
+fn add_fact(animal: Animal, user: Admin, request: ModifyRequest, state: &APIState) -> HttpResponse {
+    let id = rand::thread_rng().next_u64();
+
+    let fact_list = determine_list(animal, &state.fact_lists);
+    let mut list_lock = fact_list.write().unwrap();
+
+    match request.fact_content {
+        Some(content) => {
+            list_lock.push(
+                Fact {
+                    id,
+                    content
                 }
-            }
-
-            None => { // They had a valid account, but had no assigned perms
-                HttpResponse::Forbidden()
-                    .body("NO PERMISSIONS")
-            }
+            );
         }
-    } else { // Invalid key or username
-        HttpResponse::Unauthorized()
-            .body("INVALID AUTH")
+        None => return generate_response(&Response::NoContentSpecified.gen_resp())
+    }
+    
+    modify_persistent(animal, list_lock, state);
+
+    let message = format!("{} fact added", &*animal);
+    info!("{} by {}", message, user.name);
+
+    generate_response(&Response::Created(message).gen_resp())
+}
+
+fn delete_fact(animal: Animal, user: Admin, request: ModifyRequest, state: &APIState) -> HttpResponse {
+    if let Some(rem_id) = request.fact_id {
+        let fact_list = determine_list(animal, &state.fact_lists);
+        let mut list_lock = fact_list.write().unwrap();
+        if let Some(found) = list_lock.iter().enumerate().find(|(_, fact)| fact.id == rem_id) {
+            let pos = found.0;
+            list_lock.remove(pos);
+            modify_persistent(animal, list_lock, state);
+
+            info!("{} fact removed by {}", &*animal, user.name);
+
+            HttpResponse::NoContent().finish()
+        } else {
+            generate_response(&Response::BadID.gen_resp())
+        }
+    } else {
+        generate_response(&Response::NoID.gen_resp())
     }
 }

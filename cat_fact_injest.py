@@ -9,7 +9,7 @@ with open("uncleaned_cat_facts.json", encoding="utf8") as raw_facts:
     for uncleaned_fact in raw_json:
         formatted_facts.append({
             "id": id_counter,
-            "fact": uncleaned_fact["fact"]
+            "content": uncleaned_fact["fact"]
         })
         id_counter += 1
 
