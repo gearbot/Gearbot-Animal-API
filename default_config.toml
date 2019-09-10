@@ -1,4 +1,6 @@
+# This is where we will store logs
 logging_dir = "./logs/"
+# How verbose of logging should we perform. See the Rust log crate for other options
 logging_level = "info"
 
 # This is where the API will look for the fact JSON files
@@ -11,16 +13,17 @@ animal_fact_types = ["Cat", "Dog"]
 ip = "127.0.0.1"
 port = 8080
 
-[[admins]]
-name = "Alice"
-key = "Rqz7-GoUXl-QBxgSgEnJ-ryT8WJ2N7IMbEIoJwrFDGHzsqReHBsBEMNJf_-8"
-[admins.permissions]
-add = true
-delete = true
+# Disabled for default for security. To enable, create an admin with a *secure* key
+#[[admins]]
+#name = "Alice"
+#key = "Rqz7-GoUXl-QBxgSgEnJ-ryT8WJ2N7IMbEIoJwrFDGHzsqReHBsBEMNJf_-8"
+#[admins.permissions]
+#add = true
+#delete = true
 
-[[admins]]
-name = "Susan"
-key = "mUB8VWbNfL3aHBYSSkJIiN7bD3xyk2eTNL15D1KdrNlHK8UdguD7uGXGr6zn"
-[admins.permissions]
-add = true
-delete = false
+#[[admins]]
+#name = "Susan"
+#key = "mUB8VWbNfL3aHBYSSkJIiN7bD3xyk2eTNL15D1KdrNlHK8UdguD7uGXGr6zn"
+#[admins.permissions]
+#add = true
+#delete = false

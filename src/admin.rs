@@ -147,3 +147,95 @@ fn delete_fact(animal: Animal, user: Admin, request: ModifyRequest, state: &APIS
         generate_response(&Response::NoID.gen_resp())
     }
 }
+
+
+#[cfg(test)]
+mod permission_tests {
+    use super::{Admin, Perms};
+    use super::{
+        check_admin_perms
+    };
+
+    fn gen_admin_add_only() -> Admin {
+        Admin {
+            name: "Tester".to_string(),
+            key: "add_only".to_string(),
+            permissions: Perms {
+                add: true,
+                delete: false,
+            }
+        }
+    }
+
+    fn gen_admin_delete_only() -> Admin {
+        Admin {
+            name: "Tester".to_string(),
+            key: "delete_only".to_string(),
+            permissions: Perms {
+                add: false,
+                delete: true,
+            }
+        }
+    }
+
+    fn gen_admin_no_perms() -> Admin {
+        Admin {
+            name: "Tester".to_string(),
+            key: "no_perms".to_string(),
+            permissions: Perms {
+                add: false,
+                delete: false,
+            }
+        }
+    }
+
+    fn gen_admin_all_perms() -> Admin {
+        Admin {
+            name: "Tester".to_string(),
+            key: "all_perms".to_string(),
+            permissions: Perms {
+                add: true,
+                delete: true,
+            }
+        }
+    }
+
+    #[test]
+    fn no_admin_list() {
+        assert_eq!(check_admin_perms("TesterKey", None), None);
+    }
+
+    #[test]
+    fn invalid_key() {
+        let admin_list = vec![gen_admin_no_perms(), gen_admin_all_perms()];
+        assert_eq!(check_admin_perms("TesterKey", Some(&admin_list)), None);
+    }
+
+    #[test]
+    fn no_perms() {
+        let admin_list = vec![gen_admin_no_perms(), gen_admin_all_perms()];
+        let expected = (gen_admin_no_perms(), None);
+        assert_eq!(check_admin_perms(&admin_list[0].key, Some(&admin_list)), Some(expected));
+    }
+
+    #[test]
+    fn all_perms() {
+        let admin_list = vec![gen_admin_all_perms(), gen_admin_no_perms()];
+        let expected = Some((admin_list[0].clone(), Some(Perms { add: true, delete: true })));
+        assert_eq!(check_admin_perms(&admin_list[0].key, Some(&admin_list)), expected);
+    }
+
+    #[test]
+    fn add_only_perms() {
+        let admin_list = vec![gen_admin_add_only(), gen_admin_no_perms()];
+        let expected = Some((admin_list[0].clone(), Some(Perms { add: true, delete: false })));
+        assert_eq!(check_admin_perms(&admin_list[0].key, Some(&admin_list)), expected);
+    }
+
+    #[test]
+    fn delete_only_perms() {
+        let admin_list = vec![gen_admin_delete_only(), gen_admin_no_perms()];
+        let expected = Some((admin_list[0].clone(), Some(Perms { add: false, delete: true })));
+        assert_eq!(check_admin_perms(&admin_list[0].key, Some(&admin_list)), expected);
+    }
+}

@@ -93,8 +93,8 @@ pub struct Fact {
 // The system can support all listed fact types, but they aren't required to be present
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FactLists {
-    cat_facts: Option<RwLock<Vec<Fact>>>,
-    dog_facts: Option<RwLock<Vec<Fact>>>,
+    pub cat_facts: Option<RwLock<Vec<Fact>>>,
+    pub dog_facts: Option<RwLock<Vec<Fact>>>,
 }
 
 impl Default for FactLists {
