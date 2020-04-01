@@ -7,7 +7,7 @@ default-run = "animal_api"
 
 [dependencies]
 actix-web = "1.0"
-flexi_logger = "0.14"
+flexi_logger = "0.15"
 log = "0.4"
 prometheus = "0.7"
 rand = "0.7"
