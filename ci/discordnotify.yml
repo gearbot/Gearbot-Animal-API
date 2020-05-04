@@ -19,7 +19,7 @@ steps:
     continueOnError: true
     inputs:
       targetType: 'inline'
-      script: 'curl --max-time 6 -X POST -k -H ''Content-Type: application/json'' -i ''https://discordapp.com/api/webhooks/$(channel_id)/$(webhook_key)'' --data ''{
+      script: 'curl --max-time 6 -X POST -k -H ''Content-Type: application/json'' -i ''https://discord.com/api/webhooks/$(channel_id)/$(webhook_key)'' --data ''{
             "embeds": [{
                 "title": "Pipeline Deployment Event",
                 "color": $(statusColor),
