@@ -9,21 +9,38 @@ facts_dir = "./example_facts/"
 # If the list is empty, then no facts will be loaded
 animal_fact_types = ["Cat", "Dog"]
 
+# Enable the ability to have facts flagged
+flagging_enabled = false
+
+# List of locations that should have the ability to flag facts
+# Note: It is up to the implementator to manage who can do submit flags with the key.
+[[flaggers]]
+#location = "SomeService"
+#key = "Neat"
+
 [server]
 ip = "127.0.0.1"
 port = 8080
 
 # Disabled for default for security. To enable, create an admin with a *secure* key
-#[[admins]]
+[[admins]]
 #name = "Alice"
 #key = "Rqz7-GoUXl-QBxgSgEnJ-ryT8WJ2N7IMbEIoJwrFDGHzsqReHBsBEMNJf_-8"
 #[admins.permissions]
-#add = true
-#delete = true
+#view_facts = true
+#add_fact = true
+#delete_fact = true
+#view_flags = true
+#add_flag = true
+#delete_flag = true
 
 #[[admins]]
 #name = "Susan"
 #key = "mUB8VWbNfL3aHBYSSkJIiN7bD3xyk2eTNL15D1KdrNlHK8UdguD7uGXGr6zn"
 #[admins.permissions]
-#add = true
-#delete = false
+#view_flags = true
+#add_fact = true
+#delete_fact = false
+#view_flags = true
+#add_flag = false
+#delete_flag = false
