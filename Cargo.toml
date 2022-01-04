@@ -5,7 +5,7 @@ authors = ["BlackHoleFox <blackholefoxdev@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-actix-web = { version = "3.3", features = ["rustls"] }
+actix-web = { version = "4.0.0-beta.18", features = ["rustls"] }
 flexi_logger = "0.22"
 log = "0.4"
 prometheus = "0.13"

@@ -173,7 +173,7 @@ pub async fn test_fact_consumer_req(animal: Animal, uri: &str, state: APIState) 
         Animal::Dog => animal_facts::get_dog_fact,
     };
 
-    let mut app = test::init_service(
+    let app = test::init_service(
         App::new()
             .app_data(mock_state.clone())
             .service(web::resource(uri).route(web::get().to(endpoint))),
@@ -181,13 +181,13 @@ pub async fn test_fact_consumer_req(animal: Animal, uri: &str, state: APIState) 
     .await;
 
     let req = test::TestRequest::get().uri(uri).to_request();
-    let _: Fact = test::read_response_json(&mut app, req).await;
+    let _: Fact = test::call_and_read_body_json(&app, req).await;
 }
 
 pub async fn test_flag_consumer_req(req: FactFlagRequest, uri: &str, state: APIState) -> JsonResp {
     let mock_state = Data::new(state);
 
-    let mut app = test::init_service(
+    let app = test::init_service(
         App::new()
             .app_data(mock_state.clone())
             .service(web::resource(uri).route(web::post().to(flagging::set_flag))),
@@ -199,12 +199,12 @@ pub async fn test_flag_consumer_req(req: FactFlagRequest, uri: &str, state: APIS
         .set_json(&req)
         .to_request();
 
-    test::read_response_json(&mut app, req).await
+    test::call_and_read_body_json(&app, req).await
 }
 
 pub async fn test_admin_fact_req<T: Serialize>(req: T, uri: &str, state: APIState) -> JsonResp {
     let mock_state = Data::new(state);
-    let mut app = test::init_service(
+    let app = test::init_service(
         App::new()
             .app_data(mock_state.clone())
             .service(web::resource(uri).route(web::post().to(admin::modify_fact))),
@@ -216,12 +216,12 @@ pub async fn test_admin_fact_req<T: Serialize>(req: T, uri: &str, state: APIStat
         .set_json(&req)
         .to_request();
 
-    test::read_response_json(&mut app, req).await
+    test::call_and_read_body_json(&app, req).await
 }
 
 pub async fn test_admin_flag_req<T: Serialize>(req: T, uri: &str, state: APIState) -> JsonResp {
     let mock_state = Data::new(state);
-    let mut app = test::init_service(
+    let app = test::init_service(
         App::new()
             .app_data(mock_state.clone())
             .service(web::resource(uri).route(web::post().to(admin::modify_flag))),
@@ -233,5 +233,5 @@ pub async fn test_admin_flag_req<T: Serialize>(req: T, uri: &str, state: APIStat
         .set_json(&req)
         .to_request();
 
-    test::read_response_json(&mut app, req).await
+    test::call_and_read_body_json(&app, req).await
 }

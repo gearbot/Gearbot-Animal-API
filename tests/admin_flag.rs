@@ -46,7 +46,7 @@ async fn view_flags() {
     };
 
     let mock_state = Data::new(state2);
-    let mut app = test::init_service(
+    let app = test::init_service(
         App::new()
             .app_data(mock_state.clone())
             .service(web::resource(uri).route(web::post().to(admin::modify_flag))),
@@ -58,7 +58,7 @@ async fn view_flags() {
         .set_json(&req_json)
         .to_request();
 
-    let returned: Vec<FactFlag> = test::read_response_json(&mut app, req).await;
+    let returned: Vec<FactFlag> = test::call_and_read_body_json(&app, req).await;
 
     assert_eq!(returned, *expected);
 }
@@ -182,7 +182,7 @@ async fn delete_flag_ok() {
     let state = gen_state(&dir);
 
     let mock_state = Data::new(state);
-    let mut app = test::init_service(
+    let app = test::init_service(
         App::new()
             .app_data(mock_state.clone())
             .service(web::resource(uri).route(web::post().to(admin::modify_flag))),
@@ -194,7 +194,7 @@ async fn delete_flag_ok() {
         .set_json(&req_json)
         .to_request();
 
-    let resp = test::read_response(&mut app, req).await;
+    let resp = test::call_and_read_body(&app, req).await;
 
     assert_eq!(resp, Bytes::from_static(b""))
 }

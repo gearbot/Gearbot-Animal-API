@@ -161,7 +161,7 @@ async fn list_facts() {
     let expected = raw.read().unwrap();
 
     let mock_state = Data::new(state);
-    let mut app = test::init_service(
+    let app = test::init_service(
         App::new()
             .app_data(mock_state.clone())
             .service(web::resource(uri).route(web::post().to(admin::modify_fact))),
@@ -173,7 +173,7 @@ async fn list_facts() {
         .set_json(&req_json)
         .to_request();
 
-    let received: Vec<Fact> = test::read_response_json(&mut app, req).await;
+    let received: Vec<Fact> = test::call_and_read_body_json(&app, req).await;
 
     assert_eq!(received, *expected)
 }
@@ -262,7 +262,7 @@ async fn delete_fact_ok() {
     let state = gen_state(&dir);
 
     let mock_state = Data::new(state);
-    let mut app = test::init_service(
+    let app = test::init_service(
         App::new()
             .app_data(mock_state.clone())
             .service(web::resource(uri).route(web::post().to(admin::modify_fact))),
@@ -274,7 +274,7 @@ async fn delete_fact_ok() {
         .set_json(&req_json)
         .to_request();
 
-    let resp = test::read_response(&mut app, req).await;
+    let resp = test::call_and_read_body(&app, req).await;
 
     assert_eq!(resp, Bytes::from_static(b""))
 }
