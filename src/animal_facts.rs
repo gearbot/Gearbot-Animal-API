@@ -1,5 +1,5 @@
 use actix_web::web::{Data, HttpResponse};
-use rand::{thread_rng, Rng};
+use rand::{seq::SliceRandom, thread_rng};
 use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
 
@@ -12,19 +12,10 @@ pub struct Fact {
 }
 
 // The system can support all listed fact types, but they aren't required to be present
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct FactLists {
     pub cat_facts: Option<RwLock<Vec<Fact>>>,
     pub dog_facts: Option<RwLock<Vec<Fact>>>,
-}
-
-impl Default for FactLists {
-    fn default() -> Self {
-        FactLists {
-            cat_facts: None,
-            dog_facts: None,
-        }
-    }
 }
 
 pub fn get_cat_fact(app_data: Data<APIState>) -> HttpResponse {
@@ -32,10 +23,8 @@ pub fn get_cat_fact(app_data: Data<APIState>) -> HttpResponse {
         let mut rng = thread_rng();
         let list_lock = fact_list.read().unwrap();
 
-        // This should never panic as we will always be in range
-        let rand_index = rng.gen_range(0, list_lock.len());
-
-        let rand_pick = list_lock.get(rand_index).unwrap();
+        // This should never panic since `Some()` means there is >= 1 fact.
+        let rand_pick = list_lock.choose(&mut rng).unwrap();
 
         app_data
             .req_counter
@@ -52,9 +41,9 @@ pub fn get_dog_fact(app_data: Data<APIState>) -> HttpResponse {
     if let Some(fact_list) = &app_data.fact_lists.dog_facts {
         let mut rng = thread_rng();
         let list_lock = fact_list.read().unwrap();
-        let rand_index = rng.gen_range(0, list_lock.len());
 
-        let rand_pick = list_lock.get(rand_index).unwrap();
+        // This should never panic since `Some()` means there is >= 1 fact.
+        let rand_pick = list_lock.choose(&mut rng).unwrap();
 
         app_data
             .req_counter

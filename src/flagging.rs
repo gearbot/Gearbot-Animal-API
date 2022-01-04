@@ -10,13 +10,10 @@ use crate::*;
 fn check_flagger(unchecked_auth: String, flagger_list: &[Flagger]) -> Option<Flagger> {
     if !flagger_list.is_empty() {
         let unchecked_auth = unchecked_auth.as_bytes();
-        match flagger_list
+        flagger_list
             .iter()
             .find(|flagger| bool::from(unchecked_auth.ct_eq(flagger.key.as_bytes())))
-        {
-            Some(flagger) => Some(flagger.clone()),
-            None => None,
-        }
+            .cloned()
     } else {
         None
     }
@@ -56,11 +53,10 @@ pub fn set_flag(app_data: Data<APIState>, body: Json<FactFlagRequest>) -> HttpRe
         let mut flag_list = flag_list.write().unwrap();
 
         // Check to make sure the targeted fact exists
-        if flag_list
+        if !flag_list
             .iter()
             .enumerate()
-            .find(|(_, flag)| flag.fact_id == fact_id)
-            .is_none()
+            .any(|(_, flag)| flag.fact_id == fact_id)
         {
             return generate_response(&RESP_ID_NOT_FOUND);
         }

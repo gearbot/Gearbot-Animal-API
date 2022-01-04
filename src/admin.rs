@@ -25,9 +25,9 @@ fn check_admin_perms<'a>(
             Some(admin) => {
                 let perms = admin.permissions;
                 if perms.add_fact || perms.delete_fact || perms.view_flags || perms.delete_flag {
-                    Some((&admin, Some(admin.permissions)))
+                    Some((admin, Some(admin.permissions)))
                 } else {
-                    Some((&admin, None))
+                    Some((admin, None))
                 }
             }
             None => None,
@@ -82,7 +82,7 @@ pub fn modify_fact(
     req: HttpRequest,
     body: Json<AdminFactRequest>,
 ) -> HttpResponse {
-    let action = determine_action(&req.path());
+    let action = determine_action(req.path());
 
     let user = match check_user(action, &body.key, &state) {
         Ok(user) => user,
@@ -246,11 +246,10 @@ fn add_flag(
     {
         let mut flag_list = flag_list.write().unwrap();
 
-        if flag_list
+        if !flag_list
             .iter()
             .enumerate()
-            .find(|(_, flag)| flag.fact_id == set_flag.1)
-            .is_none()
+            .any(|(_, flag)| flag.fact_id == set_flag.1)
         {
             return generate_response(&RESP_ID_NOT_FOUND);
         }
