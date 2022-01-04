@@ -236,7 +236,7 @@ async fn delete_fact_bad_id() {
     let dir = make_dir();
     let req_json = AdminFactRequest {
         // Example of a number that is not *currently* existing
-        fact_id: Some(03),
+        fact_id: Some(3),
         fact_content: None,
         animal_type: Animal::Dog,
         key: gen_admin_all_perms().key,

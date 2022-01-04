@@ -52,9 +52,9 @@ async fn main() {
         toml::from_str(&config_string).expect("The config was malformed!")
     };
 
-    Logger::with_str(&config.logging_level)
-        .log_to_file()
-        .directory(&config.logging_dir)
+    Logger::try_with_str(&config.logging_level)
+        .expect("invalid logging level")
+        .log_to_file(flexi_logger::FileSpec::default().directory(config.logging_dir.clone()))
         .duplicate_to_stderr(Duplicate::Info)
         .start()
         .unwrap();

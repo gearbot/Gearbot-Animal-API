@@ -192,7 +192,7 @@ pub fn load_fact_flags(flag_count: &IntCounter, config: &Config) -> Option<RwLoc
             Ok(contents) => {
                 let flags: Vec<FactFlag> =
                     serde_json::from_str(&contents).expect("The flags file was malformed!");
-                flag_count.inc_by(flags.len() as i64);
+                flag_count.inc_by(flags.len() as u64);
                 Some(RwLock::new(flags))
             }
             Err(_) => {
@@ -223,7 +223,7 @@ pub fn load_fact_lists(fact_count: &IntCounterVec, config: &Config) -> animal_fa
 
             fact_count
                 .with_label_values(&[animal.as_str()])
-                .inc_by(facts.len() as i64);
+                .inc_by(facts.len() as u64);
 
             info!("{} facts loaded!", animal.as_str());
             match animal {
